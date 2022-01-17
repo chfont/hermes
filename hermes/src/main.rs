@@ -4,6 +4,7 @@ use std::io::Write;
 use dbus::blocking::Connection;
 pub mod config;
 pub mod comm;
+pub mod reminder;
 
 fn main() {
    

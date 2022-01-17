@@ -1,6 +1,6 @@
 use std::env;
 pub mod ipc;
-pub mod message;
+pub mod reminder;
 pub mod info;
 
 fn main() {

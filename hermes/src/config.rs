@@ -2,13 +2,13 @@ use std::env;
 use std::fs::File;
 use std::fs;
 use std::io::Write;
-use sqlite;
+use rusqlite;
 
 const DIRECTORY : &str = ".hermes";
 const DATABASE : &str = "hermes.sqlite";
 
 /* Setups environment: .hermes directory, and database file */
-pub fn initialize_environment(mut log: &File) -> Option<sqlite::Connection> {
+pub fn initialize_environment(mut log: &File) -> Option<rusqlite::Connection> {
     let directory_setup = setup_directory(&mut log);
     if !directory_setup {
 	return None;
@@ -80,8 +80,8 @@ fn create_directory(mut log: &File) -> bool {
 }
 
 /* Setup database connection, creating db and table if it is not present */
-fn setup_database(mut log: &File)-> Option<sqlite::Connection> {
-    let db_conn = sqlite::open(DATABASE);
+fn setup_database(mut log: &File)-> Option<rusqlite::Connection> {
+    let db_conn = rusqlite::Connection::open(DATABASE);
     if let Err(err) = db_conn {
 	let fmt_str = format!("Error opening database at {}: {}\n", DATABASE, err);
 	let _ = log.write_all(fmt_str.as_bytes());
@@ -102,7 +102,8 @@ fn setup_database(mut log: &File)-> Option<sqlite::Connection> {
            minute INTEGER NOT NULL,\
 	   n INTEGER
 	   );\
-         END TRANSACTION;"
+           END TRANSACTION;",
+	[]
     );
     if let Err(err) = created_table {
 	let fmt_str = format!("Error creating database table: {}\n", err);

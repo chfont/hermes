@@ -4,6 +4,7 @@ use dbus::channel::Sender;
 use dbus::message as msg;
 use std::{fs::File, io::Write};
 use zmq::{self, Socket};
+use crate::reminder;
 
 pub fn init_zeromq(mut log: &File) -> Option<Socket> {
     let context = zmq::Context::new();
@@ -25,26 +26,18 @@ pub fn notify(data: &Vec<Vec<u8>>, conn: &Connection, mut log: &File) {
 	let _ = log.write_all(b"Received Message of invalid part count\n");
 	return;
     }
-    let header = std::str::from_utf8(&data[0]);
-    if let Err(e) = header {
-	let fmt_str = format!("Error decoding message header: {}\n", e.to_string());
-	let _ = log.write_all(fmt_str.as_bytes());
-	return;
+    
+    let valid_header = validate_header(&data[0], &mut log);
+    if ! valid_header {
+	return; // Already logged
     }
-    let header = header.unwrap();
-    if header != "HERMES" {
-	let fmt_str = format!("Invalid Header, received {}, expected: HERMES\n", header);
-	let _ = log.write_all(fmt_str.as_bytes());
+
+    let reminder = reminder::Reminder::deserialize_reminder(&data[1], &mut log);
+    if let None = reminder {
 	return;
     }
     
-    let message = std::str::from_utf8(&data[1]);
-    if let Err(e) = message {
-	let fmt_str = format!("Error decoding message body: {}\n", e.to_string());
-	let _ = log.write_all(fmt_str.as_bytes());
-	return;
-    }
-    let message = message.unwrap();
+    let reminder = reminder.unwrap();
 
     let res = msg::Message::new_method_call(
         "org.freedesktop.Notifications",
@@ -64,7 +57,7 @@ pub fn notify(data: &Vec<Vec<u8>>, conn: &Connection, mut log: &File) {
         MessageItem::UInt32(0),
         MessageItem::Str("".to_string()),
         MessageItem::Str("Hermes".to_string()),
-        MessageItem::Str(message.to_string()),
+        MessageItem::Str(reminder.get_message().to_string()),
         MessageItem::new_array(vec![MessageItem::Str("".to_string())]).unwrap(),
         MessageItem::new_dict(vec![(
             MessageItem::Str("".to_string()),
@@ -75,4 +68,23 @@ pub fn notify(data: &Vec<Vec<u8>>, conn: &Connection, mut log: &File) {
     ]);
 
     let _ = conn.send(dbus_msg);
+}
+
+fn validate_header(vec: &Vec<u8>, mut log: &File) -> bool {
+    
+    let header = std::str::from_utf8(&vec);
+    if let Err(e) = header {
+	let fmt_str = format!("Error decoding message header: {}\n", e.to_string());
+	let _ = log.write_all(fmt_str.as_bytes());
+	return false;
+    }
+    
+    let header = header.unwrap();
+    if header != "HERMES" {
+	let fmt_str = format!("Invalid Header, received {}, expected: HERMES\n", header);
+	let _ = log.write_all(fmt_str.as_bytes());
+	return false;
+    }
+
+    return true;
 }
