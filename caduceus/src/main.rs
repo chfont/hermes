@@ -24,6 +24,12 @@ fn main() {
 	},
 	"add" => {
 	    ipc::add_reminder();
+	},
+	"list" => {
+	    ipc::list_reminders();
+	},
+	"remove" => {
+	    //ipc::remove_reminders();
 	}
 	_ => {
 	    println!("Argument not recognized");

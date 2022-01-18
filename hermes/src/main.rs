@@ -1,10 +1,10 @@
-use libc;
 use std::fs::File;
 use std::io::Write;
 use dbus::blocking::Connection;
 pub mod config;
 pub mod comm;
 pub mod reminder;
+pub mod db;
 
 fn main() {
    
@@ -31,20 +31,28 @@ fn main() {
     // Now Process is running as a proper Unix Daemon
 
     let file = File::create("/tmp/hermes.log");
-    if let Err(_) = file {
+    if file.is_err() {
 	return; // can't log
     }
     let mut log = file.unwrap();
 
-    let db_conn = config::initialize_environment(&mut log);
-    if let None = db_conn { //Somewhere, initialization failed, and an issue should be logged
+    let db_conn = config::initialize_environment(&log);
+    if db_conn.is_none() { //Somewhere, initialization failed, and an issue should be logged
 	return;
     }
-
+    let db_conn = db_conn.unwrap();
+    let _ = log.write_all(b"SUCCESSFUL DB CONN\n");
+    let api_statements = db::PreparedStatements::new(&db_conn, &mut log);
+    if api_statements.is_none() {
+	return;
+    }
+    let mut api_statements = api_statements.unwrap();
+	
+    let _ = log.write_all(b"SUCCESSFUL API SETUP\n");
     //Now Daemon is in proper environment, with a database connection
 
     let socket = comm::init_zeromq(&log);
-    if let None = socket {
+    if socket.is_none() {
 	return; // Socket binding failed, terminate (already logged)
     }
     let socket = socket.unwrap();
@@ -58,12 +66,13 @@ fn main() {
 
     loop{
 	let data = socket.recv_multipart(0);
+	let _ = log.write_all(b"RECEIVED MESSAGE\n");
 	if let Err(err) = data {
 	    let fmt_str = format!("Error while receiving data: {}\n", err);
 	    let _ = log.write_all(fmt_str.as_bytes());
 	}
 	let data = data.unwrap();
-	comm::notify(&data, &conn, &log);
-	let _ =  socket.send("RECEIVED",0); // Send message to put socket into valid state to receive next command
+	comm::handle_message(&data, &conn, &mut log, &mut api_statements, &socket);
+	 // Send message to put socket into valid state to receive next command
     }
 }

@@ -16,13 +16,11 @@ pub fn add_reminder(){
     }
     let reminder = reminder.unwrap();
     
-    let ctx = zmq::Context::new();
-    let socket = ctx.socket(zmq::REQ);
-    if let Err(err) = socket {
-	println!("Error initializing socket: {}", err);
+    let zmq_conn = construct_socket();
+    if let None = zmq_conn {
 	return;
     }
-    let socket = socket.unwrap();
+    let (ctx, socket) = zmq_conn.unwrap();
     
     let success = socket.connect("ipc:///tmp/hermesd");
     if let Err(err) = success {
@@ -30,12 +28,62 @@ pub fn add_reminder(){
 	return;
     }
     
-    let _ = socket.send_multipart(vec!("HERMES".as_bytes().to_vec(), reminder.serialize()), 0);
+    let _ = socket.send_multipart(vec!("HERMES".as_bytes().to_vec(),vec!(1 as u8), reminder.serialize()), 0);
     let mut msg = Message::new();
     let result = socket.recv(&mut msg, 0);
     if let Err(err) = result {
 	println!("Error in receiving response from Hermes: {}", err);
     }
+}
+
+pub fn list_reminders(){
+    let comm = construct_socket();
+    if let None = comm {
+	return;
+    }
+    let (ctx, socket) = comm.unwrap();
+    let success = socket.connect("ipc:///tmp/hermesd");
+    if let Err(err) = success {
+	println!("Error connecting: {}", err);
+	return;
+    }
+
+    let _ = socket.send_multipart(vec!("HERMES".as_bytes().to_vec(), vec!(2 as u8)),0);
+    let data = socket.recv_multipart(0);
+    if let Err(err) = data {
+	println!("Error while receiving data: {}\n", err);
+	return;
+    }
+    let mut data = data.unwrap();
+    
+    // Let server know data is sent
+    let mut res = socket.send("RECEIVED",0);
+    while let Err(_) = res {
+	res = socket.send("RECEIVED",0);
+    }
+
+    if data.len() == 0 || std::str::from_utf8(&data[0]).unwrap() != "HERMES" {
+	println!("Malformed message received");
+	return;
+    }
+    data.remove(0); // TODO: Better way?
+    for reminder in data {
+	let rem = reminder::Reminder::deserialize_reminder(reminder);
+	if let Some(value) = rem {
+	    value.print();
+	}
+    }
+}
+
+fn construct_socket() -> Option<(zmq::Context, zmq::Socket)> {
+    let ctx = zmq::Context::new();
+    let socket = ctx.socket(zmq::REQ);
+    if let Err(err) = socket {
+	println!("Error initializing socket: {}", err);
+	return None;
+    }
+    let socket = socket.unwrap();
+    return Some((ctx, socket));
 }
 
 fn read_in_integer<T: Debug + FromStr>() -> Option<T> where <T as FromStr>::Err : Debug{

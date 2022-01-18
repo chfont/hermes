@@ -8,12 +8,12 @@ const DIRECTORY : &str = ".hermes";
 const DATABASE : &str = "hermes.sqlite";
 
 /* Setups environment: .hermes directory, and database file */
-pub fn initialize_environment(mut log: &File) -> Option<rusqlite::Connection> {
-    let directory_setup = setup_directory(&mut log);
+pub fn initialize_environment(log: &File) -> Option<rusqlite::Connection> {
+    let directory_setup = setup_directory(log);
     if !directory_setup {
 	return None;
     } else {
-	return setup_database(&mut log);
+	return setup_database(log);
     }
 }
 
@@ -25,7 +25,7 @@ fn setup_directory(mut log: &File) -> bool {
 	    let _ = log.write_all(fmt_str.as_bytes());
 	    return false;
 	}
-	let in_dir = build_dir(&log);
+	let in_dir = build_dir(log);
 	if ! in_dir {
 	    return false;
 	}
@@ -40,9 +40,9 @@ fn setup_directory(mut log: &File) -> bool {
 /* Handles construction of directory, to be used in setup_directory(). Split to improve readability */
 fn build_dir(mut log: &File) -> bool {
     let attr = fs::metadata(DIRECTORY);
-    if let Err(_) = attr {
+    if attr.is_err() {
 	// Directory doesn't exist yet
-	let created = create_directory(&mut log);
+	let created = create_directory(log);
 	if !created {
 	    return false; // Already logged
 	}
@@ -91,18 +91,17 @@ fn setup_database(mut log: &File)-> Option<rusqlite::Connection> {
     }
     let db_conn = db_conn.unwrap();
     let created_table = db_conn.execute(
-	" BEGIN TRANSACTION;\
-          CREATE TABLE IF NOT EXISTS reminder (\
+	" CREATE TABLE IF NOT EXISTS reminder (\
            id INTEGER PRIMARY KEY,\
            frequency INTEGER NOT NULL,\
            message TEXT NOT NULL,\
            month INTEGER NOT NULL,\
            day INTEGER NOT NULL,\
+	   year INTEGER NOT NULL,\
            hour INTEGER NOT NULL,\
            minute INTEGER NOT NULL,\
 	   n INTEGER
-	   );\
-           END TRANSACTION;",
+	   );",
 	[]
     );
     if let Err(err) = created_table {
