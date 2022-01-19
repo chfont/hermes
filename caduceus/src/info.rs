@@ -1,11 +1,12 @@
 // Module to hold information about the application, like help and info
 
-const HELP: &'static [(&'static str, &'static str)] = &[
-    (&"-v", &"version information"),
-    (&"version", &"version information"),
-    (&"-h", &"usage information"),
-    (&"help", &"usage information"),
-    (&"add", &"interactively add a reminder")
+const HELP: &[(&str, &str)] = &[
+    ("-v", "version information"),
+    ("version", "version information"),
+    ("-h", "usage information"),
+    ("help", "usage information"),
+    ("add", "interactively add a reminder"),
+    ("list", "list existing reminders")
 ];
 
 pub fn help_info(){

@@ -9,10 +9,10 @@ pub enum Frequency {
 impl ToString for Frequency {
     fn to_string(&self) -> String {
         match self {
-	    &Self::DAILY => "Daily".to_string(),
-	    &Self::ONCE => "Once".to_string(),
-	    &Self::WEEKLY => "Weekly".to_string(),
-	    &Self::NDAYS => "Every N Days".to_string()
+	    Self::DAILY => "Daily".to_string(),
+	    Self::ONCE => "Once".to_string(),
+	    Self::WEEKLY => "Weekly".to_string(),
+	    Self::NDAYS => "Every N Days".to_string()
 	}
     }
 }
@@ -48,7 +48,7 @@ impl Reminder {
 	    4 => Some(Frequency::NDAYS),
 	    _ => None
 	};
-	if let None = frequency {
+	if frequency.is_none() {
 	    return None;
 	}
 	let frequency = frequency.unwrap();
@@ -56,7 +56,7 @@ impl Reminder {
 	let day = vec[2];
 	// TODO: year
 	let year = deserialize_u32(vec!(vec[3],vec[4], vec[5], vec[6]));
-	if let None = year {
+	if year.is_none() {
 	    return None;
 	}
 	let year = year.unwrap();
@@ -64,7 +64,7 @@ impl Reminder {
 	let hour = vec[7];
 	let minute = vec[8];
 	let n_internal = deserialize_u32(vec!(vec[9], vec[10], vec[11], vec[12]));
-	if let None = n_internal {
+	if n_internal.is_none() {
 	    return None;
 	}
 	let n_internal = n_internal.unwrap();
@@ -74,12 +74,12 @@ impl Reminder {
 	}
 	let (_, msg) = vec.split_at(13);
 	let data = std::str::from_utf8(msg);
-	if let Err(_) = data {
+	if data.is_err() {
 	    return None;
 	}
 	let data = data.unwrap();
 
-	return Some(Reminder::new(
+	Some(Reminder::new(
 	    frequency,
 	    data.to_string(),
 	    month,
@@ -88,23 +88,20 @@ impl Reminder {
 	    hour,
 	    minute,
 	    n
-	));
+	))
     }
 
     pub fn print(&self) {
 	let mut fmt_str = format!("REMINDER: {} | {}/{}/{} {:02}:{:02} | Frequency: {}", self.content, self.month, self.day, self.year, self.hour, self.minute, self.frequency.to_string());
-	match self.frequency {
-	    Frequency::NDAYS => {
-		fmt_str = fmt_str + format!("{}", self.n.unwrap()).as_str();
-	    },
-	    _ => {}
-	};
+	if self.frequency == Frequency::NDAYS {
+	    fmt_str += format!(": {}", self.n.unwrap()).as_str();
+	}
 
 	println!("{}", fmt_str);
     }
     
     pub fn new(freq: Frequency, msg: String, month: u8, day: u8,year: u32, hour: u8, minute: u8, n: Option<u32>) -> Self {
-	return Self {
+	Self {
 	    frequency: freq,
 	    content: msg,
 	    month,
@@ -113,7 +110,7 @@ impl Reminder {
 	    hour,
 	    minute,
 	    n
-	};
+	}
     }
     
     pub fn serialize(&self) -> Vec<u8> {
@@ -129,7 +126,6 @@ impl Reminder {
 	vec.push(self.day);
 	
 	for byte in self.year.to_be_bytes() {
-	    println!("{}", byte);
 	    vec.push(byte);
 	}
 
@@ -153,6 +149,6 @@ impl Reminder {
 	
 	let mut v = self.content.as_bytes().to_vec();
 	vec.append(&mut v);
-	return vec;
+	vec
     }
 }
