@@ -6,7 +6,8 @@ const HELP: &[(&str, &str)] = &[
     ("-h", "usage information"),
     ("help", "usage information"),
     ("add", "interactively add a reminder"),
-    ("list", "list existing reminders")
+    ("list", "list existing reminders"),
+    ("remove", "interactively remove a reminder")
 ];
 
 pub fn help_info(){

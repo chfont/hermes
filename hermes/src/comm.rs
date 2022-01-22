@@ -6,20 +6,6 @@ use std::{fs::File, io::Write};
 use zmq::{self, Socket};
 use crate::{reminder, db};
 
-pub fn init_zeromq(mut log: &File) -> Option<Socket> {
-    let context = zmq::Context::new();
-    let response = context.socket(zmq::REP).unwrap();
-    let success = response.bind("ipc:///tmp/hermesd");
-    if let Err(err) = success {
-        let fmt_str = format!("Error binding socket: {}", err);
-        let _ = log.write_all(fmt_str.as_bytes());
-        return None;
-    } else {
-        return Some(response);
-    }
-}
-
-// Invariant: Socket needs to be in state to recv after this
 pub fn handle_message(data: &Vec<Vec<u8>>, conn: &Connection, log: &mut File, api_statements: &mut db::PreparedStatements, socket: &zmq::Socket) {
     if data.len() < 2 {
 	let _ = log.write_all(b"Received Message of invalid part count\n");
@@ -42,7 +28,7 @@ pub fn handle_message(data: &Vec<Vec<u8>>, conn: &Connection, log: &mut File, ap
 		let _ = log.write_all(b"Received Message of invalid part count\n");
 		return;
 	    }
-	    notify(&data[2], conn, log);
+	    notify(&data[2], conn, log); //TODO: Remove when notify thread is implemented
 	    let reminder = reminder::Reminder::deserialize_reminder(&data[2], log);
 	    if reminder.is_none() {
 		let _ = log.write_all(b"Could not deserialize reminder\n");
@@ -57,7 +43,11 @@ pub fn handle_message(data: &Vec<Vec<u8>>, conn: &Connection, log: &mut File, ap
 	    list_reminders(api_statements, socket, log);
 	    let _ = socket.send("SUCCESS", 0);
 	},
-	_ => {} // TODO: ADD DELETE
+	3 => { // Delete
+	    let _ = log.write_all(b"RECEIVED DELETE COMMAND\n");
+	    handle_delete(api_statements, socket, log);
+	},
+	_ => {}
     };
 }
 
@@ -134,7 +124,7 @@ fn list_reminders(api_statements: &mut db::PreparedStatements, socket: &zmq::Soc
     // TODO: fill msg_vec
     msg_vec.push("HERMES".as_bytes().to_vec());
     for reminder in reminders {
-	msg_vec.push(reminder.serialize());
+	msg_vec.push(reminder.1.serialize());
     }
     
     let _ = socket.send_multipart(msg_vec, 0);
@@ -144,4 +134,50 @@ fn list_reminders(api_statements: &mut db::PreparedStatements, socket: &zmq::Soc
 
 fn add_reminder(reminder: reminder::Reminder, api_statements: &mut db::PreparedStatements, log: &File) {
     api_statements.add(reminder, log);
+}
+
+fn handle_delete(api_statements: &mut db::PreparedStatements, socket: &zmq::Socket, log: &mut File) {
+    //1. Get list, with numbers,
+    let reminders = api_statements.list(log);
+    if reminders.is_none() {
+	return;
+    }
+    let reminders = reminders.unwrap();
+    // 2. Send to client
+    let mut msg_vec: Vec<Vec<u8>> = vec!("HERMES".as_bytes().to_vec());
+    for (id, reminder) in reminders {
+	let mut vec: Vec<u8> = id.to_be_bytes().to_vec();
+	vec.extend(reminder.serialize());
+	msg_vec.push(vec);
+    }
+
+    let res = socket.send_multipart(msg_vec,0);
+    if let Err(e) = res {
+	let fmt_str = format!("Error sending list of reminders: {}", e);
+	let _ = log.write_all(fmt_str.as_bytes());
+	return;
+    }
+    //3. Receive number back from client
+    let mut buff = zmq::Message::new();
+    let _ = socket.recv(&mut buff,0);
+    let data = buff.as_str();
+    //TODO: maybe send should loop until success? Or client should know to timeout
+    if data.is_none() {
+	let _ = socket.send("Invalid message received",0);
+	return;
+    }
+    let data = data.unwrap().trim().parse::<u32>();
+    if data.is_err() {
+	let _ = socket.send("Invalid message received: not an int",0);
+	return;
+    }
+    let data = data.unwrap();
+    //4. delete
+    let success = api_statements.delete(data, log);
+    //5. send success
+    if success {
+	let _ = socket.send("Successfully deleted",0);
+    } else {
+	let _ = socket.send("Failed to delete, see log",0);
+    }
 }

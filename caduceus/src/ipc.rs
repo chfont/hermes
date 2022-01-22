@@ -7,7 +7,7 @@ use crate::reminder;
 * This module contains methods used in communication with Hermes, the background daemon
 */
 
-// D:01:12:2022:MessageText
+
 pub fn add_reminder(){
 
     let reminder = build_message_interactive();
@@ -73,6 +73,68 @@ pub fn list_reminders(){
 	    value.print();
 	}
     }
+}
+
+pub fn delete_reminder() {
+    let comm = construct_socket();
+    if comm.is_none() {
+	return;
+    }
+    let (_, socket) = comm.unwrap();
+    let success = socket.connect("ipc:///tmp/hermesd");
+    if let Err(err) = success {
+	println!("Error connecting: {}", err);
+	return;
+    }
+
+    let _ = socket.send_multipart(vec!("HERMES".as_bytes().to_vec(), vec!(3_u8)), 0);
+    let data = socket.recv_multipart(0);
+    if let Err(err) = data {
+	println!("Error while receiving data: {}\n", err);
+	return;
+    }
+    let mut data = data.unwrap();
+    if data.is_empty() || std::str::from_utf8(&data[0]).unwrap() != "HERMES" {
+	println!("Malformed message received");
+	return;
+    }
+    data.remove(0); // TODO: Better way?
+    let reminders: Vec<(u32, reminder::Reminder)> = Vec::new(); 
+    for msg in data {
+	// Should be (u32, Reminder)
+	if msg.len() < 18 {
+	    println!("Malformed Message received");
+	} else {
+	    let id = u32::from_be_bytes([msg[0],msg[1], msg[2], msg[3]]);
+	    let (_, rem) = msg.split_at(4);
+	    let reminder = reminder::Reminder::deserialize_reminder(rem.to_vec());
+	    if reminder.is_none(){
+		println!("Malformed Message received");
+	    } else {
+		print!("ID: {} |", id);
+		let val = reminder.unwrap();
+		val.print();
+	    }
+	}
+
+	
+    }
+
+    println!("Enter the id of a reminder to delete:");
+	//TODO: get ID, send, get response from server
+	let std_in = io::stdin();
+	let mut buffer = String::new();
+	let _ = std_in.read_line(&mut buffer);
+	let id = buffer.trim().parse::<u32>();
+	if id.is_err() {
+	    println!("Invalid id entered");
+	} else {
+	    let _ =  socket.send(buffer.trim(),0);
+	    let mut buff = zmq::Message::new();
+	    let _ = socket.recv(&mut buff,0);
+	    println!("{}",buff.as_str().unwrap());
+	}
+    
 }
 
 fn construct_socket() -> Option<(zmq::Context, zmq::Socket)> {

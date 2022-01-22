@@ -29,7 +29,6 @@ fn setup_directory(mut log: &File) -> bool {
 	if ! in_dir {
 	    return false;
 	}
-	//TODO: configuration
 	return true;
     } else {
 	// Log failure

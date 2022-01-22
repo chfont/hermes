@@ -5,6 +5,7 @@ pub mod config;
 pub mod comm;
 pub mod reminder;
 pub mod db;
+pub mod socket;
 
 fn main() {
    
@@ -51,11 +52,11 @@ fn main() {
     let _ = log.write_all(b"SUCCESSFUL API SETUP\n");
     //Now Daemon is in proper environment, with a database connection
 
-    let socket = comm::init_zeromq(&log);
+    let socket = socket::set_socket(&log);
     if socket.is_none() {
 	return; // Socket binding failed, terminate (already logged)
     }
-    let socket = socket.unwrap();
+    let mut socket = socket.unwrap();
 
     let conn = Connection::new_session();
     if let Err(e) = &conn {
@@ -73,6 +74,10 @@ fn main() {
 	}
 	let data = data.unwrap();
 	comm::handle_message(&data, &conn, &mut log, &mut api_statements, &socket);
-	 // Send message to put socket into valid state to receive next command
+	let mut new_sock = socket::set_socket(&log);
+	while new_sock.is_none() {
+	    new_sock = socket::set_socket(&log);
+	}
+	socket = new_sock.unwrap(); // Reset socket
     }
 }

@@ -29,7 +29,7 @@ fn main() {
 	    ipc::list_reminders();
 	},
 	"remove" => {
-	    //ipc::remove_reminders();
+	    ipc::delete_reminder();
 	}
 	_ => {
 	    println!("Argument not recognized");
