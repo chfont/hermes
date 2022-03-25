@@ -7,21 +7,21 @@ const HELP: &[(&str, &str)] = &[
     ("help", "usage information"),
     ("add", "interactively add a reminder"),
     ("list", "list existing reminders"),
-    ("remove", "interactively remove a reminder")
+    ("remove", "interactively remove a reminder"),
 ];
 
-pub fn help_info(){
+pub fn help_info() {
     println!(
-	"Caduceus, a client for Hermes\n\
+        "Caduceus, a client for Hermes\n\
 	 Usage: caduceus [OPTION]\n\n\
 	 Options:"
     );
 
-    for (opt,long) in HELP.iter() {
-	println!("\t{}\t\t{}",opt,long);
+    for (opt, long) in HELP.iter() {
+        println!("\t{}\t\t{}", opt, long);
     }
 }
 
-pub fn version_info(){
+pub fn version_info() {
     println!("Caduceus version 0.1.0");
 }
